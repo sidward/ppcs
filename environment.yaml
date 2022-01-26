@@ -1,0 +1,17 @@
+name: ppcs
+channels:
+- conda-forge
+dependencies:
+- python>=3.8
+- numpy>=1.20.0
+- cupy
+- nccl
+- cudnn
+- scipy
+- numba
+- pip
+- sympy
+- matplotlib
+- pywavelets
+- jupyter
+- tqdm

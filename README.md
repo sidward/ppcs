@@ -43,3 +43,6 @@ To uninstall, run the following commands:
 - [SigPy](https://github.com/mikgroup/sigpy) [![DOI](https://zenodo.org/badge/139635485.svg)](https://zenodo.org/badge/latestdoi/139635485)
 - [SymPy](https://github.com/sympy/sympy) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5558034.svg)](https://doi.org/10.5281/zenodo.5558034)
 - [Chebyshev](https://github.com/mlazaric/Chebyshev) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5831845.svg)](https://doi.org/10.5281/zenodo.5831845)
+
+## DOI
+[![DOI](https://zenodo.org/badge/452385092.svg)](https://zenodo.org/badge/latestdoi/452385092)

@@ -1,8 +1,8 @@
 # Polynomial Preconditioner for Compressed Sensing
 
 This repository reproduces the experiments in
-Accelerating Convergence of Proximal Methods for Compressed Sensing using 
-Polynomials with Application to MRI.
+[Accelerating Convergence of Proximal Methods for Compressed Sensing using
+Polynomials with Application to MRI](https://arxiv.org/abs/2204.10252).
 
 Written by Siddharth Srinivasan. Please post an issue on the repository
 page if there is a problem.

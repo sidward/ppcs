@@ -1,5 +1,5 @@
 devnum   = 0     # Device to run optimization on.
-ptol     = 0.5   # Percentage tolerance between iterates.
+ptol     = 0.2   # Percentage tolerance between iterates.
 pdeg     = 2     # Degree of polynomial to use.
 norm     = "l_2" # Cost function for polynomial optimization.
 l        = 0     # Smallest eigenvalue of A.H * A, if known.
@@ -60,7 +60,7 @@ if __name__ == "__main__":
     # Empty run.
     optalg.unconstrained(2, 1, A, b, lp_proxg, verbose=False)
     # Actual run.
-    optalg.unconstrained(500, ptol, A, b, lp_proxg, save=loc)
+    optalg.unconstrained(100, ptol, A, b, lp_proxg, save=loc)
 
     loc = "results/brain/pc"
     os.mkdir(loc)
@@ -68,5 +68,5 @@ if __name__ == "__main__":
     optalg.unconstrained(2, 1, A, b, pc_proxg, save=loc, l=l, norm=norm,
                          pdeg=pdeg, verbose=False)
     # Actual run.
-    optalg.unconstrained(500, ptol, A, b, pc_proxg, save=loc, \
+    optalg.unconstrained(100, ptol, A, b, pc_proxg, save=loc, \
                          l=l, norm=norm, pdeg=pdeg)

@@ -1,11 +1,11 @@
-devnum   = 0      # Device to run optimization on.
-ptol     = 0.5    # Percentage tolerance between iterates.
-pdeg     = 9      # Degree of polynomial to use.
-norm     = "l_2"  # Cost function for polynomial optimization.
-l        = 0      # Smallest eigenvalue of A.H * A, if known.
-blk      = 8      # Block size for locally low-rank.
-lp_lamda = 2.5e-6 # Regularization value for LP.
-pc_lamda = 5e-5   # Regularization value for PC.
+devnum   = 0       # Device to run optimization on.
+ptol     = 0.2     # Percentage tolerance between iterates.
+pdeg     = 9       # Degree of polynomial to use.
+norm     = "l_2"   # Cost function for polynomial optimization.
+l        = 0       # Smallest eigenvalue of A.H * A, if known.
+blk      = 8       # Block size for locally low-rank.
+lp_lamda = 2.5e-6  # Regularization value for LP.
+pc_lamda = 8.75e-5 # Regularization value for PC.
 
 ksp_file = "data/mrf3d/ksp.npy"
 trj_file = "data/mrf3d/trj.npy"
@@ -93,7 +93,7 @@ if __name__ == "__main__":
 
     # Actual run.
     loc = "results/mrf3d/lp_%s" % repr(lp_lamda)
-    optalg.unconstrained(500, ptol, A, b, lp_proxg, save=loc, idx=idx)
+    optalg.unconstrained(100, ptol, A, b, lp_proxg, save=loc, idx=idx)
 
     # Empty run.
     optalg.unconstrained(2, 1, A, b, pc_proxg, pdeg=pdeg, idx=idx, \
@@ -101,5 +101,5 @@ if __name__ == "__main__":
 
     # Actual run.
     loc = "results/mrf3d/pc_%s" % repr(pc_lamda)
-    optalg.unconstrained(500, ptol, A, b, pc_proxg, save=loc, \
+    optalg.unconstrained(100, ptol, A, b, pc_proxg, save=loc, \
                          pdeg=pdeg, idx=idx)

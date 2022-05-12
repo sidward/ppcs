@@ -83,7 +83,7 @@ def unconstrained(num_iters, ptol, A, b, proxg, pdeg=None,
       x = proxg(1, x - P(gr))
             
       if accelerate:
-        if l == 0:
+        if l > 0:
           # DOI: 10.1007/978-3-319-91578-4_2
           step = (1 - l**(0.5))/(1 + l**(0.5))
         elif stepfn == None:

@@ -16,6 +16,15 @@ Run the following commands in sequence to run the experiments.
 3. `conda activate ppcs`
 4. `make pip`
 
+**Troubleshooting**:
+
+1. This repository was tested on an NVIDIA GPU. If running on a system without the same, please remove the following packages from `environment.yaml`:
+   - `cudnn`
+   - `nccl`
+   - `cupy`
+2. Additionally, if not using an NVIDIA GPU, please set `devnum = -1` for each of the `demo_*.py` files.
+3. When running `make pip`, `git clone git@github.com:mlazaric/Chebyshev.git` will error if GitHub ssh keys are not set. Please replace that line in the `Makefile` with `git clone https://github.com/mlazaric/Chebyshev.git` and run `make pip` again.
+
 ## Data.
 
 For most experiments, the corresponding data are located in the `data`
@@ -27,7 +36,7 @@ For the `mrf3d` experiment, please run `bash download_data.sh` in the
 
 - All experiments are in the form `demo_*.py`.
 - An experiment can be performed by running, for example, `python3 demo_brain.py`.
-- The respective Jupyter notebooks can be used to generate images.
+- The respective Jupyter notebooks (as in, `plot_*.ipynb`) can be used to generate images.
 - The Jupyter notebooks must be started after running Step 3 above.
 - Additionally, LaTeX is required to render equations in the plots.
 
@@ -44,5 +53,5 @@ To uninstall, run the following commands:
 - [SymPy](https://github.com/sympy/sympy) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5558034.svg)](https://doi.org/10.5281/zenodo.5558034)
 - [Chebyshev](https://github.com/mlazaric/Chebyshev) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5831845.svg)](https://doi.org/10.5281/zenodo.5831845)
 
-## DOI
+## DOI.
 [![DOI](https://zenodo.org/badge/452385092.svg)](https://zenodo.org/badge/latestdoi/452385092)

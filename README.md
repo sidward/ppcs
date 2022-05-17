@@ -4,6 +4,12 @@ This repository reproduces the experiments in
 [Accelerating Convergence of Proximal Methods for Compressed Sensing using
 Polynomials with Application to MRI](https://arxiv.org/abs/2204.10252).
 
+Videos of results:
+  - [3D Subspace MRF](https://raw.githubusercontent.com/sidward/ppcs/main/videos/mrf.mp4)
+  - [2D Radial](https://raw.githubusercontent.com/sidward/ppcs/main/videos/radial.mp4)
+  - [2D Cartesian](https://raw.githubusercontent.com/sidward/ppcs/main/videos/brain.mp4)
+  - [2D Spiral](https://raw.githubusercontent.com/sidward/ppcs/main/videos/spiral.mp4)
+
 Written by Siddharth Srinivasan. Please post an issue on the repository
 page if there is a problem.
 

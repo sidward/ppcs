@@ -2,6 +2,7 @@ import numpy as np
 import sigpy as sp
 
 from sympy import *
+from scipy.special import binom
 from Chebyshev.chebyshev import polynomial as chebpoly
 
 def l_inf_opt(degree, l=0, L=1, verbose=True):
@@ -128,18 +129,41 @@ def l_2_opt(degree, l=0, L=1, weight=1, verbose=True):
 
   return (res, poly)
 
-def create_polynomial_preconditioner(degree, T, l=0, L=1,
-                                     norm="l_2", verbose=False):
-  r'''
+def ifista_coeffs(degree):
+  '''
+  coeffs = ifista_coeffs(degree)
+
+  Returns coefficients from:
+    An Improved Fast Iterative Shrinkage Thresholding Algorithm for Image
+    Deblurring
+    Md. Zulfiquar Ali Bhotto, M. Omair Ahmad, and M. N. S. Swamy
+    DOI: 10.1137/140970537
+
+  Inputs:
+    degree (Int): Degree of polynomial to calculate.
+
+  Returns:
+    coeffs (Array): Coefficients of optimized polynomial.
+  '''
+  c = []
+  for k in range(degree + 1):
+    c.append(binom(degree + 1, k + 1) * ((-1)**(k)))
+  return np.array(c)
+
+def create_polynomial_preconditioner(precond_type, degree, T, l=0, L=1,
+                                     verbose=False):
+  '''
   P = create_polynomial_preconditioner(degree, T, l, L, verbose=False)
 
   Inputs:
+    precond_type (String): Type of preconditioner.
+                           - "l_2"    = l_2 optimized polynomial.
+                           - "l_inf"  = l_inf optimized polynomial.
+                           - "ifista" = from DOI: 10.1137/140970537.
     degree (Int): Degree of polynomial to use.
     T (Linop): Normal linear operator.
     l (Float): Smallest eigenvalue of T. If not known, assumed to be zero.
     L (Float): Largest eigenvalue of T. If not known, assumed to be one.
-    norm (String): Norm to optimize. Currently only supports "l_2" and
-                   "l_inf".
     verbose (Bool): Print information.
 
   Returns:
@@ -147,10 +171,12 @@ def create_polynomial_preconditioner(degree, T, l=0, L=1,
   '''
   assert degree >= 0
 
-  if norm == "l_2":
+  if precond_type == "l_2":
     (c, _) = l_2_opt(degree, l, L, verbose=verbose)
-  elif norm == "l_inf":
+  elif precond_type == "l_inf":
     (c, _) = l_inf_opt(degree, l, L, verbose=verbose)
+  elif precond_type == "ifista":
+    c = ifista_coeffs(degree)
   else:
     raise Exception("Unknown norm option.")
 

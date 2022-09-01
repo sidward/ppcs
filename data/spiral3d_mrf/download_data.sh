@@ -1,0 +1,13 @@
+wget https://zenodo.org/record/6974682/files/ksp.npy
+wget https://zenodo.org/record/6974682/files/phi.npy
+wget https://zenodo.org/record/6974682/files/trj.npy
+wget https://zenodo.org/record/6974682/files/mps_000.npy
+wget https://zenodo.org/record/6974682/files/mps_001.npy
+wget https://zenodo.org/record/6974682/files/mps_002.npy
+wget https://zenodo.org/record/6974682/files/mps_003.npy
+wget https://zenodo.org/record/6974682/files/mps_004.npy
+wget https://zenodo.org/record/6974682/files/mps_005.npy
+wget https://zenodo.org/record/6974682/files/mps_006.npy
+wget https://zenodo.org/record/6974682/files/mps_007.npy
+wget https://zenodo.org/record/6974682/files/mps_008.npy
+wget https://zenodo.org/record/6974682/files/mps_009.npy

@@ -5,10 +5,110 @@ import optpoly
 
 from tqdm.auto import tqdm
 
-def unconstrained(num_iters, ptol, A, b, proxg, pdeg=None,
-        norm="l_2", accelerate=True, l=0, stepfn=None,
-        save=None, verbose=True, idx=None):
-  r"""Unconstrained Optimization.
+def cg(num_iters, ptol, A, b, P=None, lamda=None, ref=None,
+       save=None, verbose=True, idx=None):
+  r"""Conjugate Gradient.
+
+  Solves for the following optimization problem.
+
+  .. math::
+    \min_x \frac{1}{2} \| A x - b \|_2^2
+
+  Inputs:
+    num_iters (Int): Maximum number of iterations.
+    ptol (Float): l1-percentage tolerance between iterates.
+    A (Linop): Forward model.
+    b (Array): Measurement.
+    P (None or Linop): Preconditioner.
+    ref (None or Array): Reference to compare against.
+    lamda (None or Float): l2-regularization.
+    save (None or String): If specified, path to save iterations and
+                           timings.
+    verbose (Bool): Print information.
+    idx (Tuple): If passed, slice iterates before saving.
+
+  Returns:
+    x (Array): Reconstruction.
+  """
+  device = sp.get_device(b)
+  xp = device.xp
+
+  with device:
+
+    lst_time = []
+    lst_err  = None
+    if type(ref) != type(None):
+      ref = sp.to_device(ref, device)
+      lst_err = ([], [])
+
+    AHA = A.N
+    if lamda is not None:
+      AHA = AHA + lamda * sp.linop.Identitiy(A.ishape)
+
+    if P == None:
+      P = sp.linop.Identity(A.ishape)
+
+    # Set-up time.
+    start_time = time.perf_counter()
+    AHb = A.H(b)
+    x = xp.zeros_like(AHb)
+    r = AHb - AHA(x)
+    z = P(r.copy())
+    p = z.copy()
+    rzold = xp.real(xp.vdot(r, z))
+    end_time = time.perf_counter()
+
+    lst_time.append(end_time - start_time)
+    if lst_err != None:
+      lst_err[0].append(calc_perc_err(ref, x, ord=1))
+      lst_err[1].append(calc_perc_err(ref, x, ord=2))
+
+    save_helper(save, x, 0, lst_time, lst_err, idx)
+
+    if verbose:
+      pbar = tqdm(total=num_iters, desc="CG",
+                  leave=True)
+    for k in range(0, num_iters):
+      x_old = x.copy()
+      start_time = time.perf_counter()
+
+      Ap = AHA(p)
+      pAp = xp.real(xp.vdot(p, Ap)).item()
+      if pAp > 0:
+        alpha = rzold / pAp
+        sp.axpy(x, alpha, p)
+        sp.axpy(r, -alpha, Ap)
+        z = P(r.copy())
+        rznew = xp.real(xp.vdot(r, z))
+        beta = rznew / rzold
+        sp.xpay(p, beta, z)
+        rzold = rznew
+
+      end_time = time.perf_counter()
+
+      lst_time.append(end_time - start_time)
+      if lst_err != None:
+        lst_err[0].append(calc_perc_err(ref, x, ord=1))
+        lst_err[1].append(calc_perc_err(ref, x, ord=2))
+      save_helper(save, x, k + 1, lst_time, lst_err, idx)
+
+      calc_tol = calc_perc_err(x_old, x, ord=1)
+      if verbose:
+        pbar.set_postfix(ptol="%0.2f%%" % calc_tol)
+        pbar.update()
+        pbar.refresh()
+
+      if pAp <= 0 or calc_tol <= ptol:
+        break;
+
+    if verbose:
+      pbar.close()
+    return x
+
+def pgd(num_iters, ptol, A, b, proxg, x0=None, precond_type=None,
+        pdeg=None, accelerate=True, l=0, stepfn=None,
+        ref=None, save=None, verbose=True, idx=None):
+  r"""Proximal Gradient Descent.
 
   Solves for the following optimization problem using proximal gradient
   descent:
@@ -18,23 +118,24 @@ def unconstrained(num_iters, ptol, A, b, proxg, pdeg=None,
 
   Assumes MaxEig(A.H * A) = 1.
 
-  If polynomial preconditioning is used, note the the final solution is a
-  close approximation to the true solution.
-
   Inputs:
     num_iters (Int): Maximum number of iterations.
-    ptol (Float): Percentage tolerance between iterates.
+    ptol (Float): l1-percentage tolerance between iterates.
     A (Linop): Forward model.
     b (Array): Measurement.
     proxg (Prox): Proximal operator of g.
+    x0 (Array): Initial guess.
+    precond_type (String): Type of preconditioner.
+                           - "l_2"    = l_2 optimized polynomial.
+                           - "l_inf"  = l_inf optimized polynomial.
+                           - "ifista" = from DOI: 10.1137/140970537.
     pdeg (None or Int): Degree of polynomial preconditioner to use.
                         If None, do not use preconditioner.
-    norm (String): Norm to optimize. Currently only supports "l_2" and
-                   "l_inf".
     accelerate (Bool): If True, use Nestrov acceleration.
-    l (Float): Minimum eigenvalue of A.H * A.
+    l (Float): If known, minimum eigenvalue of A.H * A.
     stepfn (function): If specified, this function determines the variable
                        step size per iteration.
+    ref (None or Array): Reference to compare against.
     save (None or String): If specified, path to save iterations and
                            timings.
     verbose (Bool): Print information.
@@ -43,36 +144,50 @@ def unconstrained(num_iters, ptol, A, b, proxg, pdeg=None,
   Returns:
     x (Array): Reconstruction.
   """
-  if norm == "l_inf" and l == 0:
-    raise Exception("If l == 0, l_2 norm must be used.")
+  if precond_type == "l_inf" and l == 0:
+    raise Exception("If l == 0, l_inf polynomial cannot be used.")
 
   device = sp.get_device(b)
   xp = device.xp
 
   if verbose:
-    print("Unconstrained Optimization.")
+    print("Proximal Gradient Descent.")
     if accelerate:
       print("> Variable step size." if l == 0 else \
             "> Fixed step size derived from l = %5.2f" % l)
-    print("> Preconditioning is%sused." % \
-         (" " if pdeg is not None else " not "))
+    if precond_type == None:
+      print("> No preconditioning used.")
+    else:
+      print("> %s-preconditioning is used." % precond_type)
 
   P = sp.linop.Identity(A.ishape) if pdeg is None else  \
-      optpoly.create_polynomial_preconditioner(pdeg, A.N, l, 1, \
-                                               norm=norm, verbose=verbose)
+      optpoly.create_polynomial_preconditioner(precond_type, pdeg, A.N, l, 1,
+                                               verbose=verbose)
 
   with device:
 
-    AHb = A.H(b)
-    x = AHb.copy()
-    z = x.copy()
+    lst_time = []
+    lst_err  = None
+    if type(ref) != type(None):
+      ref = sp.to_device(ref, device)
+      lst_err = ([], [])
 
-    lst_time  = []
-    calc_tol = -1
+    # Set-up time.
+    start_time = time.perf_counter()
+    AHb = A.H(b)
+    x = AHb if x0 is None else sp.to_device(x0, device)
+    z = x.copy()
+    end_time = time.perf_counter()
+
+    lst_time.append(end_time - start_time)
+    if lst_err != None:
+      lst_err[0].append(calc_perc_err(ref, x, ord=1))
+      lst_err[1].append(calc_perc_err(ref, x, ord=2))
+    save_helper(save, x, 0, lst_time, lst_err, idx)
+
     if verbose:
-      pbar = tqdm(total=num_iters, desc="Unconstrained Optimization", \
-                  leave=True)
-    for k in range(1, num_iters + 1):
+      pbar = tqdm(total=num_iters, desc="PGD", leave=True)
+    for k in range(0, num_iters):
       start_time = time.perf_counter()
         
       x_old = x.copy()
@@ -87,192 +202,37 @@ def unconstrained(num_iters, ptol, A, b, proxg, pdeg=None,
           # DOI: 10.1007/978-3-319-91578-4_2
           step = (1 - l**(0.5))/(1 + l**(0.5))
         elif stepfn == None:
-          # DOI: 10.1007/s10957-015-0746-4
-          step = (k - 1)/(k + 4)
+          # DOI: 10.1561/2400000003
+          step = k/(k + 3)
         else:
           step = stepfn(k)
         z = x + step * (x - x_old)
 
       end_time = time.perf_counter()
+
       lst_time.append(end_time - start_time)
+      if lst_err != None:
+        lst_err[0].append(calc_perc_err(ref, x, ord=1))
+        lst_err[1].append(calc_perc_err(ref, x, ord=2))
+      save_helper(save, x, k + 1, lst_time, lst_err, idx)
 
-      calc_tol = 100 * xp.linalg.norm(x_old - x)/xp.linalg.norm(x)
-      if calc_tol <= ptol:
-        break;
-
-      if save != None:
-        tp = sp.get_array_module(x)
-        np.save("%s/time.npy" % save, np.cumsum(lst_time))
-        if idx is None:
-          tp.save("%s/iter_%03d.npy" % (save, k), x)
-        else:
-          tp.save("%s/iter_%03d.npy" % (save, k), x[idx])
-
+      calc_tol = calc_perc_err(x_old, x, ord=1)
       if verbose:
         pbar.set_postfix(ptol="%0.2f%%" % calc_tol)
         pbar.update()
         pbar.refresh()
 
+      if calc_tol <= ptol:
+        break;
+
     if verbose:
-      pbar.set_postfix(ptol="%0.2f%%" % calc_tol)
       pbar.close()
     return x
 
-def constrained(num_iters, num_normal, A, b, eps, proxg, lamda,
-                g=None, method="cg", save=None, verbose=False):
-  r"""Constrained Optimization.
-
-  Solves for the following optimization problem:
-
-  .. math::
-    \min_x g(x)
-    s.t. \| A x - b \|_2 < \epsilon
-
-  Each iteration involves solving an inner least squares problem which
-  is parameterized by the number of A.H * A evaluations.
-
-  Based on:
-    Parikh, N., & Boyd, S.
-    Proximal algorithms.
-    Foundations and Trends in optimization, 1(3), 127-239.
-    DOI: 10.1561/2400000003
-
-  Assumes MaxEig(A.H * A) = 1.
-
-  Inputs:
-    num_iters (Int): Number of ADMM iterations.
-    num_normal (Int): Number of A.H * A evaluations.
-    A (Linop): Forward linear operator.
-    b (Array): Measurement.
-    eps (Float): Constraint value.
-    proxg (Prox): Proximal operator of g.
-    lamda (Float): ADMM step size.
-    g (Function): Objective. If specified, objective over iteration
-                  and data consistency error over iteration are saved. 
-    method (String): Determines the method used to solve for the inner
-                     least squares.
-                     - "cg": Conjugate gradient.
-                     - "pi": Polynomial inversion.
-    save (None or String): If specified, path to save iterations, costs and
-                           timings.
-    verbose (Bool): Print information.
-
-  Returns:
-    x (Array): Reconstruction.
-  """
-  device = sp.get_device(b)
-  xp = device.xp
-
-  assert num_normal >= 1
-  assert method == "cg" or method == "pi"
-
-  if num_normal == 1 and method == "cg":
-    raise Exception("CG requires >= 2 normal evaluations.")
-
-  lst_time = []
-  stats = g is not None and save is not None
-  if stats:
-    lst_obj  = []
-    lst_dc   = []
-
-  with device:
-
-    n = int(np.prod(A.ishape))
-    m = int(np.prod(A.oshape))
-
-    x = xp.zeros((n + m,), dtype=xp.complex64)
-
-    x1 = x.copy()
-    x2 = x.copy()
-
-    u1 = xp.zeros_like(x)
-    u2 = xp.zeros_like(x)
-
-    Ri = sp.linop.Reshape(A.ishape, (n,))
-    Ro = sp.linop.Reshape(A.oshape, (m,))
-
-    T = sp.linop.Vstack([sp.linop.Identity((n,)), Ro.H * A * Ri])
-    if method == "pi":
-      P = optpoly.create_polynomial_preconditioner(num_normal - 1, T.N, \
-                                                   1, 2, norm="l_inf",  \
-                                                   verbose=verbose)
-
-    def prox_f1(lamda, v):
-      v1 = v[:n]
-      v2 = v[n:]
-
-      v1 = Ri.H(proxg(lamda, Ri(v1)))
-
-      vec = v2 - Ro.H(b)
-      nrm = xp.linalg.norm(vec)
-      if nrm > eps:
-        v2 = Ro.H(b) + eps * (vec/nrm)
-
-      v[:n] = v1
-      v[n:] = v2
-
-      return v
-
-    def prox_f2(lamda, v):
-      THv = T.H * v
-      v1  = v[:n]
-      if method == "cg":
-        sp.app.App(sp.alg.ConjugateGradient(T.N, THv, v1,             \
-                                            max_iter=num_normal - 1,  \
-                                            tol=1e-4),                \
-                                            leave_pbar=False,         \
-                                            show_pbar=False,          \
-                                            record_time=False).run()
-      else:
-        v1 = v1 - P * (T.N(v1) - THv)
-
-      v[:n] = v1
-      v[n:] = Ro.H(A(Ri(v1)))
-
-      return v
-    
-    pbar = tqdm(total=num_iters, desc="Constrained Optimization", \
-                leave=True)
-    for k in range(num_iters):
-      start_time = time.perf_counter()
-
-      x1 = prox_f1(lamda, x - u1)
-      x2 = prox_f2(lamda, x - u2)
-
-      x = (x1 + x2)/2
-
-      u1 += x1 - x
-      u2 += x2 - x
-
-      end_time = time.perf_counter()
-
-      dt = end_time - start_time
-      lst_time.append(dt)
-
-      if stats:
-        err = sp.to_device(xp.linalg.norm(A * Ri(x[:n]) - b), \
-                           sp.cpu_device)
-        obj = sp.to_device(g(Ri(x[:n])), sp.cpu_device)
-        lst_dc.append(err)
-        lst_obj.append(obj)
-
-      if save != None:
-        tp = sp.get_array_module(x)
-        np.save("%s/time.npy" % save, np.cumsum(lst_time))
-        tp.save("%s/iter_%03d.npy" % (save, k), Ri(x[:n]))
-        if stats:
-          np.save("%s/dc.npy" % save, lst_dc)
-          np.save("%s/obj.npy" % save, lst_obj)
-
-      pbar.update()
-      pbar.refresh()
-
-    pbar.close()
-    return Ri(x[:n])
-
-def consensus(num_iters, num_normal, A, b, lst_proxg, lamda,
-              lst_g=None, method="cg", save=None, verbose=False):
-  r"""Consensus Optimization.
+def admm(num_iters, ptol, num_normal, A, b, lst_proxg, rho,
+         lst_g=None, method="cg", P=None, ref=None,
+         save=None, verbose=True, idx=None):
+  r"""ADMM.
 
   Solves for the following optimization problem:
 
@@ -292,20 +252,23 @@ def consensus(num_iters, num_normal, A, b, lst_proxg, lamda,
 
   Inputs:
     num_iters (Int): Number of ADMM iterations.
+    ptol (Float): l1-percentage tolerance between iterates.
     num_normal (Int): Number of A.H * A evaluations.
     A (Linop): Forward linear operator.
     b (Array): Measurement.
     lst_proxg (List of Prox): List of proximal operators.
-    lamda (Float): ADMM step size.
+    rho (Float): ADMM step size.
     lst_g (List of Functions): List of regularizations. If specified,
                                objective over iterations are saved.
     method (String): Determines the method used to solve for the inner
                      least squares.
                      - "cg": Conjugate gradient.
                      - "pi": Polynomial inversion.
+    P (None or Linop): Preconditioner for "cg".
     save (None or String): If specified, path to save iterations, costs and
                            timings.
     verbose (Bool): Print information.
+    idx (Tuple): If passed, slice iterates before saving.
 
   Returns:
     x (Array): Reconstruction.
@@ -319,71 +282,125 @@ def consensus(num_iters, num_normal, A, b, lst_proxg, lamda,
   if num_normal == 1 and method == "cg":
     raise Exception("CG requires >= 2 normal evaluations.")
 
-  lst_time = []
-  stats = lst_g is not None and save is not None
-  if stats:
-    lst_obj  = []
+  c = len(lst_proxg)
+  def calculate_objective(x):
+    obj = sp.to_device(0.5 * xp.linalg.norm(A * x - b)**2, sp.cpu_device)
+    for j in range(c):
+      obj += sp.to_device(lst_g[j](x), sp.cpu_device)
+    return obj
 
   with device:
-    l_AHb = lamda * A.H(b)
-    x = xp.zeros_like(l_AHb)
 
-    c = len(lst_proxg)
+    lst_time = []
+    lst_err = None
+    if type(ref) != type(None):
+      ref = sp.to_device(ref, device)
+      lst_err = ([], [])
+
+    stats = lst_g is not None and save is not None
+    if stats:
+      lst_obj = []
+
+    start_time = time.perf_counter()
+    AHb = A.H(b)
+    x = AHb.copy()
+    r_AHb = rho * AHb
     xi = xp.zeros([1 + c] + list(x.shape), dtype=xp.complex64)
     ui = xp.zeros_like(xi)
+    end_time = time.perf_counter()
 
-    T = sp.linop.Identity(x.shape) + lamda * A.N
+    lst_time.append(end_time - start_time)
+    if lst_err != None:
+      lst_err[0].append(calc_perc_err(ref, x, ord=1))
+      lst_err[1].append(calc_perc_err(ref, x, ord=2))
+    if stats:
+      lst_obj.append(calculate_objective(x))
+      save_helper(save, x, 0, lst_time, lst_err, idx, lst_obj)
+    else:
+      save_helper(save, x, 0, lst_time, lst_err, idx)
+
+    T = sp.linop.Identity(x.shape) + rho * A.N
     if method == "pi":
-      P = optpoly.create_polynomial_preconditioner(num_normal - 1, T, \
-                                                   1, 1 + lamda, \
-                                                   norm="l_inf", \
+      P = optpoly.create_polynomial_preconditioner(num_normal - 1, T, 1,
+                                                   1 + rho, norm="l_inf",
                                                    verbose=verbose)
 
-    def prox_f(lamda, v):
+    def prox_f(rho, v):
       if method == "cg":
-        sp.app.App(sp.alg.ConjugateGradient(T, v + l_AHb, v,          \
-                                            max_iter=num_normal - 1,  \
-                                            tol=1e-4),                \
-                                            leave_pbar=False,         \
-                                            show_pbar=False,          \
+        sp.app.App(sp.alg.ConjugateGradient(T, v + r_AHb, v, P=P,
+                                            max_iter=num_normal - 1,
+                                            tol=1e-4), leave_pbar=False,
+                                            show_pbar=False,
                                             record_time=False).run()
       else:
-        v = v - P * (T(v) - (v + l_AHb))
+        v = v - P * (T(v) - (v + r_AHb))
       return v
     
-    pbar = tqdm(total=num_iters, desc="Consensus Optimization", \
-                leave=True)
+    if verbose:
+      pbar = tqdm(total=num_iters, desc="ADMM", leave=True)
     for k in range(num_iters):
+      x_old = x.copy()
       start_time = time.perf_counter()
 
-      xi[0, ...] = prox_f(lamda, x - ui[0, ...])
+      xi[0, ...] = prox_f(rho, x - ui[0, ...])
       for j in range(c):
-        xi[1 + j, ...] = lst_proxg[j](lamda, x - ui[1 + j, ...])
+        xi[1 + j, ...] = lst_proxg[j](rho, x - ui[1 + j, ...])
 
       x = xp.mean(xi, axis=0)
       ui += xi - x[None, ...]
 
       end_time = time.perf_counter()
 
-      dt = end_time - start_time
-      lst_time.append(dt)
-
+      lst_time.append(end_time - start_time)
+      if lst_err != None:
+        lst_err[0].append(calc_perc_err(ref, x, ord=1))
+        lst_err[1].append(calc_perc_err(ref, x, ord=2))
       if stats:
-        obj = sp.to_device(0.5 * xp.linalg.norm(A * x - b)**2, \
-                           sp.cpu_device)
-        for j in range(c):
-          obj += sp.to_device(lst_g[j](x), sp.cpu_device)
-        lst_obj.append(obj)
+        lst_obj.append(calculate_objective(x))
+        save_helper(save, x, k + 1, lst_time, lst_err, idx, lst_obj)
+      else:
+        save_helper(save, x, k + 1, lst_time, lst_err, idx)
 
-      if save != None:
-        tp = sp.get_array_module(x)
-        np.save("%s/time.npy" % save, np.cumsum(lst_time))
-        tp.save("%s/iter_%03d.npy" % (save, k), x)
-        if stats:
-          np.save("%s/obj.npy" % save, lst_obj)
+      calc_tol = calc_perc_err(x_old, x, ord=1)
+      if verbose:
+        pbar.set_postfix(ptol="%0.2f%%" % calc_tol)
+        pbar.update()
+        pbar.refresh()
 
-      pbar.update()
-      pbar.refresh()
+      if calc_tol <= ptol:
+        break;
 
-    pbar.close()
+    if verbose:
+      pbar.close()
     return x
+
+def calc_perc_err(ref, x, ord=2, auto_normalize=True):
+  dev = sp.get_device(x)
+  xp = dev.xp
+  with dev:
+    if auto_normalize:
+      p = ref/xp.linalg.norm(ref.ravel(), ord=ord)
+      q =   x/xp.linalg.norm(  x.ravel(), ord=ord)
+      err = xp.linalg.norm((p - q).ravel(), ord=ord)
+    else:
+      err = xp.linalg.norm((ref - x).ravel(), ord=ord)
+      err /= xp.linalg.norm(ref.ravel(), ord=ord)
+    err = sp.to_device(err, sp.cpu_device)
+  if np.isnan(err) or np.isinf(err):
+    return 100
+  return 100 * err
+
+def save_helper(save, x, itr, lst_time, lst_err, idx, obj=None):
+  if save == None:
+    return
+
+  tp = sp.get_array_module(x)
+  np.save("%s/time.npy" % save, np.cumsum(lst_time))
+  if idx is None:
+    tp.save("%s/iter_%03d.npy" % (save, itr), x)
+  else:
+    tp.save("%s/iter_%03d.npy" % (save, itr), x[idx])
+  if obj is not None:
+    np.save("%s/obj.npy" % save, lst_obj)
+  if lst_err is not None:
+    np.save("%s/err.npy" % save, lst_err)

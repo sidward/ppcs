@@ -4,12 +4,6 @@ This repository reproduces the experiments in
 [Accelerating Convergence of Proximal Methods for Compressed Sensing using
 Polynomials with Application to MRI](https://arxiv.org/abs/2204.10252).
 
-Videos of results:
-  - [3D Subspace MRF](https://raw.githubusercontent.com/sidward/ppcs/main/videos/mrf.mp4)
-  - [2D Radial](https://raw.githubusercontent.com/sidward/ppcs/main/videos/radial.mp4)
-  - [2D Cartesian](https://raw.githubusercontent.com/sidward/ppcs/main/videos/brain.mp4)
-  - [2D Spiral](https://raw.githubusercontent.com/sidward/ppcs/main/videos/spiral.mp4)
-
 Written by Siddharth Srinivasan. Please post an issue on the repository
 page if there is a problem.
 
@@ -24,25 +18,32 @@ Run the following commands in sequence to run the experiments.
 
 **Troubleshooting**:
 
-1. This repository was tested on an NVIDIA GPU. If running on a system without the same, please remove the following packages from `environment.yaml`:
+1. This repository was tested on an NVIDIA GPU. If running on a system without
+   the same, please remove the following packages from `environment.yaml`:
    - `cudnn`
    - `nccl`
    - `cupy`
-2. Additionally, if not using an NVIDIA GPU, please set `devnum = -1` for each of the `demo_*.py` files.
-3. When running `make pip`, `git clone git@github.com:mlazaric/Chebyshev.git` will error if GitHub ssh keys are not set. Please replace that line in the `Makefile` with `git clone https://github.com/mlazaric/Chebyshev.git` and run `make pip` again.
+2. Additionally, if not using an NVIDIA GPU, please set `devnum = -1` for each
+   of the `demo_*.py` files.
+3. When running `make pip`, `git clone git@github.com:mlazaric/Chebyshev.git`
+   will error if GitHub ssh keys are not set. Please replace that line in the
+   `Makefile` with `git clone https://github.com/mlazaric/Chebyshev.git` and
+   run `make pip` again.
 
 ## Data.
 
-For most experiments, the corresponding data are located in the `data`
-folder.
-For the `mrf3d` experiment, please run `bash download_data.sh` in the
-`data/mrf3d` folder to download the data.
+For most experiments, the corresponding data are located in the `data` folder.
+For the `spiral3d_mrf` experiment, please run `bash download_data.sh` in the
+`data/spiral3d_mrf` folder to download the data followed by
+`python3 combine.py`.
 
 ## Run experiments.
 
 - All experiments are in the form `demo_*.py`.
-- An experiment can be performed by running, for example, `python3 demo_brain.py`.
-- The respective Jupyter notebooks (as in, `plot_*.ipynb`) can be used to generate images.
+- An experiment can be performed by running, for example,
+  `python3 demo_ccs.py`.
+- The respective Jupyter notebooks (as in, `plot_*.ipynb`) can be used to
+  generate images and videos.
 - The Jupyter notebooks must be started after running Step 3 above.
 - Additionally, LaTeX is required to render equations in the plots.
 
@@ -55,7 +56,7 @@ To uninstall, run the following commands:
 
 ## Packages used:
 
-- [SigPy](https://github.com/mikgroup/sigpy) [![DOI](https://zenodo.org/badge/139635485.svg)](https://zenodo.org/badge/latestdoi/139635485)
+- [SigPy](https://github.com/mikgroup/sigpy) [![DOI](https://zenodo.org/badge/doi/10.5281/zenodo.5893788.svg)](https://doi.org/10.5281/zenodo.5893788)
 - [SymPy](https://github.com/sympy/sympy) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5558034.svg)](https://doi.org/10.5281/zenodo.5558034)
 - [Chebyshev](https://github.com/mlazaric/Chebyshev) [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.5831845.svg)](https://doi.org/10.5281/zenodo.5831845)
 

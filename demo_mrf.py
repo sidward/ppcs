@@ -7,7 +7,7 @@ pfista_l = 7.5e-4        # Poly. Precond. FISTA regularization.
 pfista_d = 4             # Polynomial degree.
 in_iter  = 40            # Maximum number of AHA for the inner iterations.
 out_iter = 2             # Number of ADMM outer iterations.
-is_fista = True
+use_poly = True
 verbose  = True
 
 ksp_file = "data/spiral3d_mrf/ksp.npy"
@@ -50,10 +50,13 @@ if __name__ == "__main__":
   trj = trj[::-1, ...].T
 
   if not os.path.isfile(dcf_file):
-    dcf = pipe_menon_dcf(trj, img_shape=mps.shape[1:], device=device,
-                         show_pbar=True).real
+    dcf = sp.to_device(pipe_menon_dcf(trj, img_shape=mps.shape[1:],
+                       device=devlst[0], show_pbar=True).real,
+                       sp.cpu_device)
     dcf /= np.linalg.norm(dcf.ravel(), ord=np.inf)
-    xp.save(dcf_file, dcf)
+    np.save(dcf_file, dcf)
+    print("--> DCF saved. Please run script again.")
+    exit(0)
   else:
     dcf = np.load(dcf_file)
   dcf = np.sqrt(dcf)
@@ -67,7 +70,7 @@ if __name__ == "__main__":
   mps = mps[:nc, ...]
   
   def subrecon(args):
-    (idx, is_fista, x0, v) = args
+    (idx, use_poly, x0, v) = args
     devnum = devlst[idx]
 
     _b   = np.split(b,   N, axis=0)[idx]
@@ -109,8 +112,8 @@ if __name__ == "__main__":
       I = (1/(alpha**0.5)) * sp.linop.Identity(A.ishape)
       P = LL + (1/alpha)
       T = (1/(P**0.5)) * sp.linop.Vstack((A, I))
-      lamda =  fista_l/(N * (P**(0.5))) if is_fista else \
-              pfista_l/(N * (P**(0.5)))
+      lamda = pfista_l/(N * (P**(0.5))) if use_poly else \
+               fista_l/(N * (P**(0.5)))
       proxg = prox.LLR(A.ishape, lamda, 8, p_r)
 
       t = sp.to_device(np.concatenate((_b.ravel(), v.ravel()/(alpha**0.5)),
@@ -121,23 +124,23 @@ if __name__ == "__main__":
         save = f"{loc}/subproblem"
         os.makedirs(save, exist_ok=True)
 
-      if is_fista:
-        x = optalg.pgd(in_iter, -np.inf, T, t, proxg, x0=x0,
-                       verbose=(idx == 0), save=save)
-      else:
+      if use_poly:
         x = optalg.pgd(in_iter//(pfista_d + 1), -np.inf, T, t, proxg, x0=x0,
                        precond_type="l_2", pdeg=pfista_d,
+                       verbose=(idx == 0), save=save)
+      else:
+        x = optalg.pgd(in_iter, -np.inf, T, t, proxg, x0=x0,
                        verbose=(idx == 0), save=save)
       x = sp.to_device(x, sp.cpu_device)
 
     return x
 
-  if is_fista:
-    (fista_l, sig, exp) = utils.lamda_helper(fista_l)
-    loc = "results/mrf/fista_%3.2fx10^%d" % (sig, exp)
-  else:
+  if use_poly:
     (pfista_l, sig, exp) = utils.lamda_helper(pfista_l)
     loc = "results/mrf/pfista_%3.2fx10^%d_%d" % (sig, exp, pfista_d + 1)
+  else:
+    (fista_l, sig, exp) = utils.lamda_helper(fista_l)
+    loc = "results/mrf/fista_%3.2fx10^%d" % (sig, exp)
   os.makedirs(loc, exist_ok=True)
 
   with mp.Pool(N) as p:
@@ -148,7 +151,7 @@ if __name__ == "__main__":
     for k in range(out_iter):
       start_time = time.perf_counter()
       vi   = x[None, ...] - ui
-      args = [(d, is_fista, x.copy(), vi[d, ...]) for d in range(N)]
+      args = [(d, use_poly, x.copy(), vi[d, ...]) for d in range(N)]
       xi   = np.stack(p.map(subrecon, args))
       x    = np.mean(xi, axis=0)
       ui   = ui + xi - x[None, ...]

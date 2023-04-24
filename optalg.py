@@ -106,7 +106,7 @@ def cg(num_iters, ptol, A, b, P=None, lamda=None, ref=None,
     return x
 
 def pgd(num_iters, ptol, A, b, proxg, x0=None, precond_type=None,
-        pdeg=None, accelerate=True, l=0, stepfn=None,
+        pdeg=None, accelerate=True, l=0, a=2.1, stepfn=None,
         ref=None, save=None, verbose=True, idx=None):
   r"""Proximal Gradient Descent.
 
@@ -133,6 +133,7 @@ def pgd(num_iters, ptol, A, b, proxg, x0=None, precond_type=None,
                         If None, do not use preconditioner.
     accelerate (Bool): If True, use Nestrov acceleration.
     l (Float): If known, minimum eigenvalue of A.H * A.
+    a (Float): See DOI: 10.1561/2400000003.
     stepfn (function): If specified, this function determines the variable
                        step size per iteration.
     ref (None or Array): Reference to compare against.
@@ -202,8 +203,8 @@ def pgd(num_iters, ptol, A, b, proxg, x0=None, precond_type=None,
           # DOI: 10.1007/978-3-319-91578-4_2
           step = (1 - l**(0.5))/(1 + l**(0.5))
         elif stepfn == None:
-          # DOI: 10.1561/2400000003
-          step = k/(k + 3)
+          # DOI: 10.1561/2400000003, after taking 0-index into account.
+          step = k/(k + a + 1)
         else:
           step = stepfn(k)
         z = x + step * (x - x_old)

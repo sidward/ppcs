@@ -3,7 +3,6 @@ import sigpy as sp
 
 from sympy import *
 from scipy.special import binom
-from Chebyshev.chebyshev import polynomial as chebpoly
 
 def l_inf_opt(degree, l=0, L=1, verbose=True):
   '''
@@ -31,6 +30,8 @@ def l_inf_opt(degree, l=0, L=1, verbose=True):
     coeffs (Array): Coefficients of optimized polynomial.
     polyexpr (SymPy): Resulting polynomial as a SymPy expression.
   '''
+  from Chebyshev.chebyshev import polynomial as chebpoly
+
   assert degree >= 0
 
   if verbose:

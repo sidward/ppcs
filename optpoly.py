@@ -1,11 +1,11 @@
 import numpy as np
 import sigpy as sp
-
-from sympy import *
 from scipy.special import binom
+from sympy import *
+
 
 def l_inf_opt(degree, l=0, L=1, verbose=True):
-  '''
+    """
   (coeffs, polyexpr) = l_inf_opt(degree, l=0, L=1, verbose=True)
 
   Calculate polynomial p(x) that minimizes the supremum of |1 - x p(x)|
@@ -29,39 +29,39 @@ def l_inf_opt(degree, l=0, L=1, verbose=True):
   Returns:
     coeffs (Array): Coefficients of optimized polynomial.
     polyexpr (SymPy): Resulting polynomial as a SymPy expression.
-  '''
-  from Chebyshev.chebyshev import polynomial as chebpoly
+  """
+    from Chebyshev.chebyshev import polynomial as chebpoly
 
-  assert degree >= 0
+    assert degree >= 0
 
-  if verbose:
-    print("L-infinity optimized polynomial.")
-    print("> Degree:   %d"             % degree)
-    print("> Spectrum: [%0.2f, %0.2f]" % (l, L))
+    if verbose:
+        print("L-infinity optimized polynomial.")
+        print("> Degree:   %d" % degree)
+        print("> Spectrum: [%0.2f, %0.2f]" % (l, L))
 
-  T = chebpoly.get_nth_chebyshev_polynomial(degree + 1)
+    T = chebpoly.get_nth_chebyshev_polynomial(degree + 1)
 
-  y = symbols('y')
-  P = T((L + l - 2 * y)/(L - l))
-  P = P/P.subs(y, 0)
-  P = simplify((1 - P)/y)
+    y = symbols("y")
+    P = T((L + l - 2 * y) / (L - l))
+    P = P / P.subs(y, 0)
+    P = simplify((1 - P) / y)
 
-  if verbose:
-    print("> Resulting polynomial: %s" % repr(P))
+    if verbose:
+        print("> Resulting polynomial: %s" % repr(P))
 
-  if degree > 0:
-    points = stationary_points(P, y, Interval(l, L))
-    vals = np.array( \
-            [P.subs(y, point) for point in points] + \
-            [P.subs(y, l)] + \
-            [P.subs(y, L)])
-    assert np.abs(vals).min() > 1e-8, "Polynomial not injective."
+    if degree > 0:
+        points = stationary_points(P, y, Interval(l, L))
+        vals = np.array(
+            [P.subs(y, point) for point in points] + [P.subs(y, l)] + [P.subs(y, L)]
+        )
+        assert np.abs(vals).min() > 1e-8, "Polynomial not injective."
 
-  c = Poly(P).all_coeffs()[::-1] if degree > 0 else (Float(P),)
-  return (np.array(c, dtype=np.float32), P)
+    c = Poly(P).all_coeffs()[::-1] if degree > 0 else (Float(P),)
+    return (np.array(c, dtype=np.float32), P)
+
 
 def l_2_opt(degree, l=0, L=1, weight=1, verbose=True):
-  '''
+    """
   (coeffs, polyexpr) = l_2_opt(degree, l=0, L=1, verbose=True)
 
   Calculate polynomial p(x) that minimizes the following:
@@ -87,51 +87,53 @@ def l_2_opt(degree, l=0, L=1, weight=1, verbose=True):
   Returns:
     coeffs (Array): Coefficients of optimized polynomial.
     polyexpr (SymPy): Resulting polynomial as a SymPy expression.
-  '''
-  if verbose:
-    print("L-2 optimized polynomial.")
-    print("> Degree:   %d"             % degree)
-    print("> Spectrum: [%0.2f, %0.2f]" % (l, L))
+  """
+    if verbose:
+        print("L-2 optimized polynomial.")
+        print("> Degree:   %d" % degree)
+        print("> Spectrum: [%0.2f, %0.2f]" % (l, L))
 
-  c = symbols('c0:%d' % (degree + 1))
-  x = symbols('x')
+    c = symbols("c0:%d" % (degree + 1))
+    x = symbols("x")
 
-  p = sum([(c[k] * x**k) for k in range(degree + 1)])
-  f = weight * (1 - x * p)**2
-  J = integrate(f, (x, l, L))
+    p = sum([(c[k] * x ** k) for k in range(degree + 1)])
+    f = weight * (1 - x * p) ** 2
+    J = integrate(f, (x, l, L))
 
-  mat = [[0] * (degree + 1) for _ in range(degree + 1)]
-  vec =  [0] * (degree + 1)
+    mat = [[0] * (degree + 1) for _ in range(degree + 1)]
+    vec = [0] * (degree + 1)
 
-  for edx in range(degree + 1):
-    eqn = diff(J, c[edx])
-    tmp = eqn.copy()
-    # Coefficient index
-    for cdx in range(degree + 1):
-        mat[edx][cdx] = float(Poly(eqn, c[cdx]).coeffs()[0])
-        tmp = tmp.subs(c[cdx], 0)
-    vec[edx] = float(-tmp)
+    for edx in range(degree + 1):
+        eqn = diff(J, c[edx])
+        tmp = eqn.copy()
+        # Coefficient index
+        for cdx in range(degree + 1):
+            mat[edx][cdx] = float(Poly(eqn, c[cdx]).coeffs()[0])
+            tmp = tmp.subs(c[cdx], 0)
+        vec[edx] = float(-tmp)
 
-  mat = np.array(mat, dtype=np.double)
-  vec = np.array(vec, dtype=np.double)
-  res = np.array(np.linalg.pinv(mat) @ vec, dtype=np.float32)
+    mat = np.array(mat, dtype=np.double)
+    vec = np.array(vec, dtype=np.double)
+    res = np.array(np.linalg.pinv(mat) @ vec, dtype=np.float32)
 
-  poly = sum([(res[k] * x**k) for k in range(degree + 1)])
-  if verbose:
-    print("> Resulting polynomial: %s" % repr(poly))
+    poly = sum([(res[k] * x ** k) for k in range(degree + 1)])
+    if verbose:
+        print("> Resulting polynomial: %s" % repr(poly))
 
-  if degree > 0:
-    points = stationary_points(poly, x, Interval(l, L))
-    vals = np.array( \
-            [poly.subs(x, point) for point in points] + \
-            [poly.subs(x, l)] + \
-            [poly.subs(x, L)])
-    assert vals.min() > 1e-8, "Polynomial is not positive."
+    if degree > 0:
+        points = stationary_points(poly, x, Interval(l, L))
+        vals = np.array(
+            [poly.subs(x, point) for point in points]
+            + [poly.subs(x, l)]
+            + [poly.subs(x, L)]
+        )
+        assert vals.min() > 1e-8, "Polynomial is not positive."
 
-  return (res, poly)
+    return (res, poly)
+
 
 def ifista_coeffs(degree):
-  '''
+    """
   coeffs = ifista_coeffs(degree)
 
   Returns coefficients from:
@@ -145,15 +147,15 @@ def ifista_coeffs(degree):
 
   Returns:
     coeffs (Array): Coefficients of optimized polynomial.
-  '''
-  c = []
-  for k in range(degree + 1):
-    c.append(binom(degree + 1, k + 1) * ((-1)**(k)))
-  return np.array(c)
+  """
+    c = []
+    for k in range(degree + 1):
+        c.append(binom(degree + 1, k + 1) * ((-1) ** (k)))
+    return np.array(c)
 
-def create_polynomial_preconditioner(precond_type, degree, T, l=0, L=1,
-                                     verbose=False):
-  '''
+
+def create_polynomial_preconditioner(precond_type, degree, T, l=0, L=1, verbose=False):
+    """
   P = create_polynomial_preconditioner(degree, T, l, L, verbose=False)
 
   Inputs:
@@ -169,24 +171,24 @@ def create_polynomial_preconditioner(precond_type, degree, T, l=0, L=1,
 
   Returns:
     P (Linop): Polynomial preconditioner.
-  '''
-  assert degree >= 0
+  """
+    assert degree >= 0
 
-  if precond_type == "l_2":
-    (c, _) = l_2_opt(degree, l, L, verbose=verbose)
-  elif precond_type == "l_inf":
-    (c, _) = l_inf_opt(degree, l, L, verbose=verbose)
-  elif precond_type == "ifista":
-    c = ifista_coeffs(degree)
-  else:
-    raise Exception("Unknown norm option.")
+    if precond_type == "l_2":
+        (c, _) = l_2_opt(degree, l, L, verbose=verbose)
+    elif precond_type == "l_inf":
+        (c, _) = l_inf_opt(degree, l, L, verbose=verbose)
+    elif precond_type == "ifista":
+        c = ifista_coeffs(degree)
+    else:
+        raise Exception("Unknown norm option.")
 
-  I = sp.linop.Identity(T.ishape)
+    I = sp.linop.Identity(T.ishape)
 
-  def phelper(c):
-    if c.size == 1:
-      return c[0] * I
-    return c[0] * I + T * phelper(c[1:])
+    def phelper(c):
+        if c.size == 1:
+            return c[0] * I
+        return c[0] * I + T * phelper(c[1:])
 
-  P = phelper(c)
-  return P
+    P = phelper(c)
+    return P

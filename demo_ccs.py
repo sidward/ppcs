@@ -41,7 +41,7 @@ if __name__ == "__main__":
         mvc = lambda x: sp.to_device(x, sp.cpu_device)
 
         mps = xp.load(mps_file)
-        msk = xp.load(msk_file)
+        msk = xp.load(msk_file) # Generated using BART v0.8.00 with command: bart poisson -Y 320 -Z 256 -y 2 -z 2 -C 16 -v
         rss = xp.linalg.norm(mps, axis=0) > 0.5
 
         b_ref = xp.load(ksp_file)
